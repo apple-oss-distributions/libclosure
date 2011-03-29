@@ -1,7 +1,16 @@
+/*
+ * Copyright (c) 2010 Apple Inc. All rights reserved.
+ *
+ * @APPLE_LLVM_LICENSE_HEADER@
+ */
+
 #include <stdio.h>
 #include <Block.h>
+#include "test.h"
 
-// CONFIG C++ rdar://6243400,rdar://6289367
+// TEST_CONFIG
+
+// rdar://6243400,rdar://6289367
 
 
 int constructors = 0;
@@ -59,21 +68,20 @@ TestObject& TestObject::operator=(CONST TestObject& inObj)
 void testRoutine() {
     TestObject one;
     
-    void (^b)(void) = ^{ printf("my const copy of one is %d\n", one.version()); };
+    void (^b)(void) __unused = ^{ printf("my const copy of one is %d\n", one.version()); };
 }
     
     
 
-int main(char *argc, char *argv[]) {
+int main() {
     testRoutine();
     if (constructors == 0) {
-        printf("No copy constructors!!!\n");
-        return 1;
+        fail("No copy constructors!!!");
     }
     if (constructors != destructors) {
-        printf("%d constructors but only %d destructors\n", constructors, destructors);
+        fail("%d constructors but only %d destructors", constructors, destructors);
         return 1;
     }
-    printf("%s:success\n", argv[0]);
-    return 0;
+
+    succeed(__FILE__);
 }

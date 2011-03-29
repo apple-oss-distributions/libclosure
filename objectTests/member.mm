@@ -1,13 +1,17 @@
-#import <Block.h>
-#import <stdio.h>
-#import <stdlib.h>
+/*
+ * Copyright (c) 2010 Apple Inc. All rights reserved.
+ *
+ * @APPLE_LLVM_LICENSE_HEADER@
+ */
 
-// CONFIG C++
+// TEST_CFLAGS -framework Foundation
+
+#import <objc/objc-auto.h>
+#import <Foundation/Foundation.h>
+#import <Block.h>
+#import "test.h"
 
 int recovered = 0;
-
-
-
 int constructors = 0;
 int destructors = 0;
 
@@ -20,7 +24,7 @@ public:
 	TestObject();
 	~TestObject();
 	
-	TestObject& operator=(CONST TestObject& inObj);
+	//TestObject& operator=(CONST TestObject& inObj);
         
         void test(void);
 
@@ -34,7 +38,7 @@ TestObject::TestObject(CONST TestObject& inObj)
 {
         ++constructors;
         _version = inObj._version;
-	//printf("%p (%d) -- TestObject(const TestObject&) called", this, _version); 
+	printf("%p (%d) -- TestObject(const TestObject&) called", this, _version); 
 }
 
 
@@ -51,10 +55,10 @@ TestObject::~TestObject()
         ++destructors;
 }
 
-#if 1
+#if 0
 TestObject& TestObject::operator=(CONST TestObject& inObj)
 {
-	//printf("%p -- operator= called", this);
+	printf("%p -- operator= called", this);
         _version = inObj._version;
 	return *this;
 }
@@ -62,28 +66,27 @@ TestObject& TestObject::operator=(CONST TestObject& inObj)
 
 void TestObject::test(void)  {
     void (^b)(void) = ^{ recovered = _version; };
-    void (^b2)(void) = Block_copy(b);
+    void (^b2)(void) = [b copy];
     b2();
-    Block_release(b2);
 }
-
-
 
 void testRoutine() {
     TestObject one;
-
     
     one.test();
 }
     
     
 
-int main(char *argc, char *argv[]) {
+int main() {
+    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     testRoutine();
-    if (recovered == 1) {
-        printf("%s: success\n", argv[0]);
-        exit(0);
+    objc_collect(OBJC_EXHAUSTIVE_COLLECTION|OBJC_WAIT_UNTIL_DONE);
+    [pool drain];
+
+    if (recovered != 1) {
+        fail("didn't recover byref block variable");
     }
-    printf("%s: *** didn't recover byref block variable\n", argv[0]);
-    exit(1);
+
+    succeed(__FILE__);
 }

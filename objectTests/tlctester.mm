@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2010 Apple Inc. All rights reserved.
+ *
+ * @APPLE_LLVM_LICENSE_HEADER@
+ */
+
 //
 //  tlctester.m
 //  tests
@@ -6,14 +12,16 @@
 //  Copyright 2008-2009 Apple. All rights reserved.
 //
 
+// TEST_DISABLED
+// TEST_CFLAGS -framework Foundation
+
 #import <Foundation/Foundation.h>
 #import <pthread.h>
 #import <objc/objc-auto.h>
 #include <libkern/OSAtomic.h>
 #include <sys/time.h>
 #include <Block.h>
-
-// CONFIG RR GC -C99 open rdar://5988635
+#include "test.h"
 
 // This is not a Block test at all; rather a property list test
 
@@ -75,7 +83,6 @@ int main(int argc, char *argv[]) {
         printf("Usage: %s [nthreads [sleeptime]]\n", whoami);
         return 0;
     }
-    if ([NSGarbageCollector defaultCollector]) objc_startCollectorThread();
     if (nthreads > 100) nthreads = 100;
     if (verbose) printf("running %d threads for %d seconds\n", nthreads, sleeptime);
     pthread_t threads[nthreads];

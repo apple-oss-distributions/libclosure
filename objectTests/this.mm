@@ -1,13 +1,19 @@
-// CONFIG C++ GC RR  rdar://6275956
+/*
+ * Copyright (c) 2010 Apple Inc. All rights reserved.
+ *
+ * @APPLE_LLVM_LICENSE_HEADER@
+ */
 
+// TEST_CFLAGS -framework Foundation
+
+// rdar://6275956
+
+#import <objc/objc-auto.h>
 #import <Foundation/Foundation.h>
 #import <Block.h>
+#import "test.h"
 
 int recovered = 0;
-
-
-#ifdef __cplusplus
-
 int constructors = 0;
 int destructors = 0;
 
@@ -68,36 +74,26 @@ void TestObject::test(void)  {
     b2();
 }
 
-#endif
-
 void testRoutine() {
-#ifdef __cplusplus
     TestObject *one = new TestObject();
     
     void (^b)(void) = [^{ recovered = one->version(); } copy];
     b();
     [b release];
     delete one;
-#endif
 }
     
     
 
-int main(char *argc, char *argv[]) {
+int main() {
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-    NSGarbageCollector *collector = [NSGarbageCollector defaultCollector];
     testRoutine();
-    [collector collectIfNeeded]; // trust that we can kick off TLC
-    [collector collectExhaustively];
-#ifdef __cplusplus
-    if (recovered == 1) {
-        printf("%s: success\n", argv[0]);
-        exit(0);
+    objc_collect(OBJC_EXHAUSTIVE_COLLECTION | OBJC_WAIT_UNTIL_DONE);
+    [pool drain];
+
+    if (recovered != 1) {
+        fail("%s: *** didn't recover byref block variable");
     }
-    printf("%s: *** didn't recover byref block variable\n", argv[0]);
-    exit(1);
-#else
-    printf("%s: placeholder success\n", argv[0]);
-    return 0;
-#endif
+
+    succeed(__FILE__);
 }

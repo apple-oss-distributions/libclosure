@@ -1,13 +1,17 @@
-// CONFIG C++ GC RR
+/*
+ * Copyright (c) 2010 Apple Inc. All rights reserved.
+ *
+ * @APPLE_LLVM_LICENSE_HEADER@
+ */
 
-#import <Foundation/Foundation.h>
 #import <Block.h>
+#import <stdio.h>
+#import <stdlib.h>
+#import "test.h"
+
+// TEST_CONFIG
 
 int recovered = 0;
-
-
-#ifdef __cplusplus
-
 int constructors = 0;
 int destructors = 0;
 
@@ -20,7 +24,7 @@ public:
 	TestObject();
 	~TestObject();
 	
-	//TestObject& operator=(CONST TestObject& inObj);
+	TestObject& operator=(CONST TestObject& inObj);
         
         void test(void);
 
@@ -34,7 +38,7 @@ TestObject::TestObject(CONST TestObject& inObj)
 {
         ++constructors;
         _version = inObj._version;
-	printf("%p (%d) -- TestObject(const TestObject&) called", this, _version); 
+	//printf("%p (%d) -- TestObject(const TestObject&) called", this, _version); 
 }
 
 
@@ -51,10 +55,10 @@ TestObject::~TestObject()
         ++destructors;
 }
 
-#if 0
+#if 1
 TestObject& TestObject::operator=(CONST TestObject& inObj)
 {
-	printf("%p -- operator= called", this);
+	//printf("%p -- operator= called", this);
         _version = inObj._version;
 	return *this;
 }
@@ -62,37 +66,27 @@ TestObject& TestObject::operator=(CONST TestObject& inObj)
 
 void TestObject::test(void)  {
     void (^b)(void) = ^{ recovered = _version; };
-    void (^b2)(void) = [b copy];
+    void (^b2)(void) = Block_copy(b);
     b2();
+    Block_release(b2);
 }
 
-#endif
+
 
 void testRoutine() {
-#ifdef __cplusplus
     TestObject one;
+
     
     one.test();
-#endif
 }
     
     
 
-int main(char *argc, char *argv[]) {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-    NSGarbageCollector *collector = [NSGarbageCollector defaultCollector];
+int main() {
     testRoutine();
-    [collector collectIfNeeded]; // trust that we can kick off TLC
-    [collector collectExhaustively];
-#ifdef __cplusplus
-    if (recovered == 1) {
-        printf("%s: success\n", argv[0]);
-        exit(0);
+    if (recovered != 1) {
+        fail("didn't recover byref block variable");
     }
-    printf("%s: *** didn't recover byref block variable\n", argv[0]);
-    exit(1);
-#else
-    printf("%s: placeholder success\n", argv[0]);
-    return 0;
-#endif
+
+    succeed(__FILE__);
 }
