@@ -1,5 +1,5 @@
 /*
- * runtime.c
+ * runtime.cpp
  * libclosure
  *
  * Copyright (c) 2008-2010 Apple Inc. All rights reserved.
@@ -9,9 +9,9 @@
 
 
 #include "Block_private.h"
+#include <platform/string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdint.h>
 #include <dlfcn.h>
 #include <os/assumes.h>
@@ -21,6 +21,8 @@
 #ifndef os_assert
 #define os_assert(_x) os_assert(_x)
 #endif
+
+#define memmove _platform_memmove
 
 #if TARGET_OS_WIN32
 #define _CRT_SECURE_NO_WARNINGS 1
@@ -47,7 +49,6 @@ static __inline bool OSAtomicCompareAndSwapInt(int oldi, int newi, int volatile 
 /*******************************************************************************
 Internal Utilities
 ********************************************************************************/
-
 
 static int32_t latching_incr_int(volatile int32_t *where) {
     while (1) {
@@ -202,9 +203,14 @@ void *_Block_copy(const void *arg) {
     }
     else {
         // Its a stack block.  Make a copy.
-        struct Block_layout *result = malloc(aBlock->descriptor->size);
+        struct Block_layout *result =
+            (struct Block_layout *)malloc(aBlock->descriptor->size);
         if (!result) return NULL;
         memmove(result, aBlock, aBlock->descriptor->size); // bitcopy first
+#if __has_feature(ptrauth_calls)
+        // Resign the invoke pointer as it uses address authentication.
+        result->invoke = aBlock->invoke;
+#endif
         // reset refcount
         result->flags &= ~(BLOCK_REFCOUNT_MASK|BLOCK_DEALLOCATING);    // XXX not needed
         result->flags |= BLOCK_NEEDS_FREE | 2;  // logical refcount 1
@@ -346,7 +352,8 @@ bool _Block_has_signature(void *aBlock) {
 
 const char * _Block_signature(void *aBlock)
 {
-    struct Block_descriptor_3 *desc3 = _Block_descriptor_3(aBlock);
+    struct Block_layout *layout = (struct Block_layout *)aBlock;
+    struct Block_descriptor_3 *desc3 = _Block_descriptor_3(layout);
     if (!desc3) return NULL;
 
     return desc3->signature;
@@ -358,7 +365,7 @@ const char * _Block_layout(void *aBlock)
     struct Block_layout *layout = (struct Block_layout *)aBlock;
     if (layout->flags & BLOCK_HAS_EXTENDED_LAYOUT) return NULL;
 
-    struct Block_descriptor_3 *desc3 = _Block_descriptor_3(aBlock);
+    struct Block_descriptor_3 *desc3 = _Block_descriptor_3(layout);
     if (!desc3) return NULL;
 
     return desc3->layout;
@@ -370,7 +377,7 @@ const char * _Block_extended_layout(void *aBlock)
     struct Block_layout *layout = (struct Block_layout *)aBlock;
     if (! (layout->flags & BLOCK_HAS_EXTENDED_LAYOUT)) return NULL;
 
-    struct Block_descriptor_3 *desc3 = _Block_descriptor_3(aBlock);
+    struct Block_descriptor_3 *desc3 = _Block_descriptor_3(layout);
     if (!desc3) return NULL;
 
     // Return empty string (all non-object bytes) instead of NULL 
@@ -513,3 +520,8 @@ void _Block_object_dispose(const void *object, const int flags) {
         break;
     }
 }
+
+
+// Workaround for <rdar://26015603> dylib with no __DATA segment fails to rebase
+__attribute__((used))
+static int let_there_be_data = 42;
